@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zuteilungsreife-Rechner</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #16252f; background: #edf3f5; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; padding: clamp(1rem, 4vw, 3rem); background: radial-gradient(circle at top right, #d6efeb 0, transparent 30rem), #edf3f5; }
+    main { max-width: 1000px; margin: auto; padding: clamp(1.25rem, 4vw, 2.75rem); border: 1px solid #d6e0e4; border-radius: 20px; background: #fff; box-shadow: 0 20px 50px #1731431c; }
+    h1 { margin: 0 0 .45rem; color: #005e5c; font-size: clamp(1.75rem, 4vw, 2.35rem); letter-spacing: -.035em; }
+    .intro, .hint, footer { color: #52616d; line-height: 1.55; }
+    .intro { max-width: 42rem; margin: 0; }
+    .calculator-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); gap: 1.25rem; align-items: start; margin-top: 1.75rem; }
+    form { display: grid; gap: 1rem; }
+    .fields { display: grid; grid-template-columns: 1fr; gap: .35rem; }
+    label { display: grid; gap: .4rem; padding: .65rem .8rem; border: 1px solid #dbe5e8; border-radius: 10px; background: #fbfcfc; font-weight: 700; }
+    small { color: #64737b; font-size: .79rem; font-weight: 400; line-height: 1.4; }
+    input, select, textarea, button { font: inherit; }
+    input, select, textarea { width: 100%; padding: .72rem .8rem; border: 1px solid #acbcc2; border-radius: 7px; background: #fff; color: #16252f; transition: border-color .15s, box-shadow .15s; }
+    input:focus, select:focus, textarea:focus { outline: 0; border-color: #007e79; box-shadow: 0 0 0 3px #007e7920; }
+    input:disabled { border-color: #d7e1e3; background: #eef4f4; color: #42615f; }
+    textarea { min-height: 7rem; resize: vertical; }
+    button { justify-self: start; border: 0; border-radius: 7px; background: #006c69; color: #fff; padding: .75rem 1rem; font-weight: 700; cursor: pointer; }
+    button:hover { background: #005753; }
+    .info-button { background: #e7f2f1; color: #005e5c; }
+    .info-button:hover { background: #d3e8e5; }
+    .hint { margin: 0; font-size: .9rem; }
+    .result { padding: clamp(1.1rem, 3vw, 1.5rem); border: 1px solid #a8d7d0; border-radius: 13px; background: linear-gradient(135deg, #e1f3f0, #f8fcfb); }
+    .result > strong { color: #305b5a; font-size: .82rem; letter-spacing: .06em; text-transform: uppercase; }
+    .value { display: block; font-size: clamp(2rem, 6vw, 3rem); font-weight: 800; color: #005753; margin: .2rem 0; letter-spacing: -.04em; }
+    .details { margin: .75rem 0 0; padding-left: 1.1rem; line-height: 1.55; }
+    .hidden { display: none; }
+    .warning { color: #8a3c00; font-weight: 650; }
+    footer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e1e8ea; font-size: .82rem; }
+    code { background: #eef1f3; padding: .1rem .25rem; border-radius: 3px; }
+    dialog { width: min(680px, calc(100vw - 2rem)); max-height: min(80vh, 760px); padding: 1.5rem; border: 0; border-radius: 14px; box-shadow: 0 20px 60px #10242d55; color: #16252f; }
+    dialog::backdrop { background: #10242d88; }
+    dialog h2 { margin-top: 0; color: #005e5c; }
+    dialog h3 { margin: 1.25rem 0 .4rem; font-size: 1rem; }
+    dialog ul { padding-left: 1.25rem; line-height: 1.55; }
+    .dialog-actions { display: flex; justify-content: flex-end; margin-top: 1.25rem; }
+    @media (max-width: 700px) {
+      .calculator-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Zuteilungsreife-Rechner</h1>
+    <p class="intro">Berechnet aus einer festen Monatsrate und einer Einmalzahlung den frühestmöglichen rechnerischen Zuteilungstermin.</p>
+
+    <div class="calculator-layout">
+    <form id="calculator" novalidate>
+      <div class="fields">
+        <label>Tarifvariante
+          <select id="tariff">
+            <option value="KF045">KF 0,45</option>
+            <option value="KF195">KF 1,95</option>
+            <option value="P150">P 1,50</option>
+            <option value="P125">P 1,25</option>
+            <option value="P225">P 2,25</option>
+            <option value="P200">P 2,00</option>
+            <option value="S">S</option>
+            <option value="KP">KP</option>
+            <option value="T">T</option>
+          </select>
+        </label>
+        <label>Bausparsumme (BS) in EUR
+          <input id="bs" inputmode="decimal" min="0.01" step="0.01" value="100000" required>
+        </label>
+        <label>Vertragsbeginn
+          <input id="contract-start" type="date" required>
+        </label>
+        <label>Monatliche Rate in EUR
+          <input id="monthly-payment" inputmode="decimal" min="0" step="0.01" value="100" required>
+          <small>Wird ab Vertragsbeginn zum jeweiligen Monatsende eingezahlt.</small>
+        </label>
+        <label>Datum der Einmalzahlung
+          <input id="lump-payment-date" type="date" required>
+          <small>Ab diesem Datum wird der frühestmögliche Zuteilungstermin ermittelt.</small>
+        </label>
+      </div>
+      <p class="hint" id="dates-note"></p>
+      <p class="hint" id="tariff-hint"></p>
+      <button id="info-button" class="info-button" type="button">Variablen und Formel erklären</button>
+      <button id="calculate-button" type="submit">Jetzt neu berechnen</button>
+    </form>
+
+    <section class="result" aria-live="polite">
+      <strong>Frühester Zuteilungstermin</strong>
+      <span class="value" id="result">-</span>
+      <span id="result-text">Bitte Werte eingeben und berechnen.</span>
+      <ul class="details" id="details"></ul>
+    </section>
+    </div>
+
+    <dialog id="formula-dialog" aria-labelledby="formula-title">
+      <h2 id="formula-title">Variablen und Berechnung</h2>
+      <h3>Grundwerte</h3>
+      <ul>
+        <li><strong>BS</strong>: Bausparsumme.</li>
+        <li><strong>G</strong>: Bausparguthaben am Bewertungsstichtag, höchstens BS.</li>
+        <li><strong>SHS</strong>: Summe aller Guthabenstände an vergangenen monatlichen Bewertungsstichtagen, jeweils höchstens BS. Damit wird die Dauer der Ansparung berücksichtigt.</li>
+        <li><strong>MGH</strong>: Mindestsparguthaben der Tarifvariante, zum Beispiel 40&nbsp;% bei KF.</li>
+      </ul>
+      <h3>Tarife KF, P und S</h3>
+      <p><code>BZ = (200 × TB × F) / (D / 750 + ZF × D² / (SHS + 3 × G))</code></p>
+      <ul>
+        <li><strong>D</strong>: Differenz aus BS und G; ab 50&nbsp;% Guthaben wird D auf 50&nbsp;% von BS begrenzt.</li>
+        <li><strong>TB</strong>: vertraglicher Tilgungsbeitrag des späteren Bauspardarlehens. Er ist ein Faktor der Formel, nicht deine monatliche Sparrate.</li>
+        <li><strong>F</strong>: Tarif-/Tilgungsfaktor. Bei KF und S ist er 1; bei P hängt er zusätzlich von TB und dem Anspargrad ab.</li>
+        <li><strong>ZF</strong>: Zinsfaktor der jeweiligen Tarifvariante.</li>
+        <li><strong>ANSP</strong>: Anspargrad in Tarif P: <code>max(0, G / BS − MGH)</code>.</li>
+      </ul>
+      <h3>Tarife KP und T</h3>
+      <p><code>BZ = SHS × BZF / BS</code></p>
+      <p><strong>BZF</strong> ist 7,5 bei KP und 7,0 bei T.</p>
+      <h3>Wann ist der Vertrag rechnerisch zuteilungsreif?</h3>
+      <p>Der Rechner prüft Mindestsparzeit, Mindestsparguthaben und eine kaufmännisch gerundete Bewertungszahl von mindestens 200. Der Zuteilungstermin liegt drei Monate nach dem passenden Bewertungsstichtag. Die von Wüstenrot festgelegte Zielbewertungszahl kann die tatsächliche Zuteilung später machen.</p>
+      <div class="dialog-actions"><button id="close-info-button" type="button">Schließen</button></div>
+    </dialog>
+
+    <footer>
+      Die Berechnung dient zur Orientierung. Zinsen, Gebühren, Auszahlungen und Tarifänderungen werden nicht simuliert. Für eine Zuteilung gelten zusätzlich Mindestsparzeit, Mindestansparung, Mindestbewertungszahl sowie die von der Bausparkasse festgelegte Zielbewertungszahl.
+    </footer>
+  </main>
+
+  <script>
+    const tariffs = {
+      KF045: { label: "KF 0,45", zf: 0.45, factor: 1, repaymentRate: 0.01, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
+      KF195: { label: "KF 1,95", zf: 0.275, factor: 1, repaymentRate: 0.0035, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
+      P150: { label: "P 1,50", zf: 0.503, repaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
+      P125: { label: "P 1,25", zf: 0.503, repaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
+      P225: { label: "P 2,25", zf: 0.286, repaymentRate: 0.006, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
+      P200: { label: "P 2,00", zf: 0.286, repaymentRate: 0.006, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
+      S: { label: "S", zf: 0.5, factor: 1, repaymentRate: 0.006, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 36 },
+      KP: { label: "KP", bzf: 7.5, costRate: 0.01, minimumSavings: 0.5, minimumMonths: 12, simple: true },
+      T: { label: "T", bzf: 7, costRate: 0.01, minimumSavings: 0.4, minimumMonths: 12, simple: true }
+    };
+
+    const form = document.querySelector("#calculator");
+    const tariffSelect = document.querySelector("#tariff");
+    const tariffHint = document.querySelector("#tariff-hint");
+    const result = document.querySelector("#result");
+    const resultText = document.querySelector("#result-text");
+    const details = document.querySelector("#details");
+    const datesNote = document.querySelector("#dates-note");
+    const bsInput = document.querySelector("#bs");
+    const lumpPaymentDateInput = document.querySelector("#lump-payment-date");
+    const formulaDialog = document.querySelector("#formula-dialog");
+
+    function parseGermanNumber(value) {
+      const normalized = value.trim().replace(/\s/g, "");
+      if (normalized.includes(",")) {
+        return Number(normalized.replace(/\./g, "").replace(",", "."));
+      }
+      if (/^\d{1,3}(\.\d{3})+$/.test(normalized)) {
+        return Number(normalized.replace(/\./g, ""));
+      }
+      return Number(normalized);
+    }
+
+    function formatNumber(value, decimals = 2) {
+      return new Intl.NumberFormat("de-DE", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      }).format(value);
+    }
+
+    function commercialRound(value) {
+      return Math.floor(value + 0.5);
+    }
+
+    function toDate(value) {
+      const date = new Date(`${value}T00:00:00`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function lastDayOfMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    }
+
+    function firstDayOfNextMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth() + 1, 1);
+    }
+
+    function formatDate(date) {
+      return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0")
+      ].join("-");
+    }
+
+    function formatDisplayDate(date) {
+      return [
+        String(date.getDate()).padStart(2, "0"),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        date.getFullYear()
+      ].join(".");
+    }
+
+    function calculateBalances(contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs) {
+      let shs = 0;
+      let balanceAtValuation = 0;
+      const firstStichtag = lastDayOfMonth(contractStart);
+
+      for (let stichtag = new Date(firstStichtag); stichtag <= valuation; stichtag = lastDayOfMonth(new Date(stichtag.getFullYear(), stichtag.getMonth() + 1, 1))) {
+        let balance = 0;
+        const months = (stichtag.getFullYear() - contractStart.getFullYear()) * 12 + stichtag.getMonth() - contractStart.getMonth() + 1;
+        balance += monthlyPayment * months;
+        if (lumpPaymentDate && lumpPaymentDate <= stichtag) balance += lumpPayment;
+        shs += Math.min(balance, bs);
+      }
+
+      const months = (valuation.getFullYear() - contractStart.getFullYear()) * 12 + valuation.getMonth() - contractStart.getMonth() + 1;
+      balanceAtValuation += monthlyPayment * months;
+      if (lumpPaymentDate && lumpPaymentDate <= valuation) balanceAtValuation += lumpPayment;
+
+      return { shs, balanceAtValuation };
+    }
+
+    function calculateBz(tariff, bs, g, shs) {
+      if (tariff.simple) {
+        return { raw: shs * tariff.bzf / bs };
+      }
+
+      const tb = bs * tariff.repaymentRate;
+      const d = g > bs * 0.5 ? bs * 0.5 : bs - g;
+      const anspargrad = tariff.p ? Math.max(0, g / bs - tariff.minimumSavings) : 0;
+      const factor = tariff.p
+        ? 1 - 64 * ((tb - 0.004 * bs) / bs) * anspargrad
+        : tariff.factor;
+      const interestPart = shs + 3 * g === 0 ? 0 : tariff.zf * d * d / (shs + 3 * g);
+      const denominator = d / 750 + interestPart;
+      return { raw: denominator === 0 ? 0 : 200 * tb * factor / denominator, tb, d, factor, anspargrad };
+    }
+
+    function addMonths(date, months) {
+      const targetMonth = date.getMonth() + months;
+      const targetYear = date.getFullYear() + Math.floor(targetMonth / 12);
+      const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+      return new Date(targetYear, normalizedMonth, Math.min(date.getDate(), lastDayOfMonth(new Date(targetYear, normalizedMonth, 1)).getDate()));
+    }
+
+    function evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, lumpPaymentDate, customLumpPayment) {
+      const minimumSavingsDate = addMonths(contractStart, tariff.minimumMonths);
+      const monthsToValuation = (valuation.getFullYear() - contractStart.getFullYear()) * 12 + valuation.getMonth() - contractStart.getMonth() + 1;
+      const minimumSavingsAmount = bs * tariff.minimumSavings;
+      const monthlySavingsAtValuation = monthlyPayment * monthsToValuation;
+      const requiredLumpPayment = Math.max(0, minimumSavingsAmount - monthlySavingsAtValuation);
+      const lumpPayment = customLumpPayment === null ? requiredLumpPayment : customLumpPayment;
+      const balances = calculateBalances(contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs);
+      const g = Math.min(balances.balanceAtValuation, bs);
+      const calculation = calculateBz(tariff, bs, g, balances.shs);
+
+      return {
+        possible: lumpPaymentDate >= contractStart
+          && lumpPaymentDate <= valuation
+          && valuation >= minimumSavingsDate
+          && g >= minimumSavingsAmount
+          && commercialRound(calculation.raw) >= 200,
+        paymentDate: lumpPaymentDate,
+        lumpPayment,
+        requiredLumpPayment,
+        minimumSavingsAmount,
+        monthlySavingsAtValuation,
+        monthsToValuation,
+        balances,
+        g,
+        calculation
+      };
+    }
+
+    function calculateAutomaticLumpPayment(tariff, bs, contractStart, paymentDate, monthlyPayment) {
+      const monthsToPayment = (paymentDate.getFullYear() - contractStart.getFullYear()) * 12
+        + paymentDate.getMonth() - contractStart.getMonth() + 1;
+      return Math.max(0, bs * tariff.minimumSavings - monthlyPayment * Math.max(0, monthsToPayment));
+    }
+
+    function findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, paymentDate, customLumpPayment) {
+      const lumpPayment = customLumpPayment === null
+        ? calculateAutomaticLumpPayment(tariff, bs, contractStart, paymentDate, monthlyPayment)
+        : customLumpPayment;
+      const firstValuation = lastDayOfMonth(paymentDate);
+      let fallback;
+
+      for (let month = 0; month < 600; month += 1) {
+        const valuation = lastDayOfMonth(new Date(firstValuation.getFullYear(), firstValuation.getMonth() + month, 1));
+        const plan = evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, paymentDate, lumpPayment);
+        fallback = plan;
+        if (plan.possible) {
+          return {
+            ...plan,
+            valuation,
+            allocationDate: new Date(valuation.getFullYear(), valuation.getMonth() + 4, 1)
+          };
+        }
+      }
+
+      return { ...fallback, allocationDate: null };
+    }
+
+    function updateTariff() {
+      const tariff = tariffs[tariffSelect.value];
+      tariffHint.textContent = tariff.simple
+        ? `${tariff.label}: BZ = SHS x ${tariff.bzf} / BS.`
+        : `${tariff.label}: Mindestsparguthaben ${formatNumber(tariff.minimumSavings * 100, 0)} % der Bausparsumme; Mindestsparzeit ${tariff.minimumMonths} Monate.`;
+    }
+
+    tariffSelect.addEventListener("change", updateTariff);
+    const defaultContractStart = firstDayOfNextMonth(new Date());
+    document.querySelector("#contract-start").value = formatDate(defaultContractStart);
+    datesNote.textContent = "Vertragsbeginn und Zahlungsdaten können angepasst werden.";
+    bsInput.addEventListener("blur", () => {
+      const value = parseGermanNumber(bsInput.value);
+      if (Number.isFinite(value) && value >= 0) bsInput.value = formatNumber(value, Number.isInteger(value) ? 0 : 2);
+    });
+    bsInput.dispatchEvent(new Event("blur"));
+    updateTariff();
+    document.querySelector("#info-button").addEventListener("click", () => {
+      if (typeof formulaDialog.showModal === "function") formulaDialog.showModal();
+      else formulaDialog.setAttribute("open", "");
+    });
+    document.querySelector("#close-info-button").addEventListener("click", () => {
+      if (typeof formulaDialog.close === "function") formulaDialog.close();
+      else formulaDialog.removeAttribute("open");
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const tariff = tariffs[tariffSelect.value];
+      const bs = parseGermanNumber(document.querySelector("#bs").value);
+      const contractStart = toDate(document.querySelector("#contract-start").value);
+      const monthlyPayment = parseGermanNumber(document.querySelector("#monthly-payment").value);
+      const lumpPaymentDate = toDate(lumpPaymentDateInput.value);
+      const customLumpPayment = null;
+
+      if (![bs, monthlyPayment].every(Number.isFinite) || !contractStart || !lumpPaymentDate || bs <= 0 || monthlyPayment < 0) {
+        result.textContent = "-";
+        resultText.textContent = "Bitte gültige Werte für Bausparsumme, Monatsrate und die Datumsangaben eingeben.";
+        details.innerHTML = "";
+        return;
+      }
+
+      if (lumpPaymentDate < contractStart) {
+        result.textContent = "-";
+        resultText.textContent = "Das Datum der Einmalzahlung darf nicht vor dem Vertragsbeginn liegen.";
+        details.innerHTML = "";
+        return;
+      }
+
+      const plan = findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, lumpPaymentDate, customLumpPayment);
+      const valuation = plan.valuation;
+      const effectiveAllocationDate = plan.allocationDate;
+      if (!plan.possible) {
+        result.textContent = "Nicht möglich";
+        resultText.textContent = `Mit diesen Zahlungen wird die Mindestbewertungszahl 200 innerhalb von 50 Jahren nicht erreicht.`;
+        details.innerHTML = [
+          `<li>Erreichtes Bausparguthaben: ${formatNumber(plan.g)} EUR</li>`,
+          `<li>Erreichte Bewertungszahl: ${formatNumber(commercialRound(plan.calculation.raw), 0)} (${formatNumber(plan.calculation.raw, 4)} ungerundet)</li>`,
+          `<li>Erforderliche Differenz zur Mindestansparung: ${formatNumber(plan.requiredLumpPayment)} EUR.</li>`,
+          `<li>Berücksichtigte Einmalzahlung: ${formatNumber(plan.lumpPayment)} EUR am ${formatDisplayDate(plan.paymentDate)}.</li>`,
+          `<li>Erhöhe die Monatsrate oder die Einmalzahlung.</li>`
+        ].filter(Boolean).join("");
+        return;
+      }
+
+      const {
+        lumpPayment,
+        paymentDate,
+        minimumSavingsAmount,
+        monthlySavingsAtValuation,
+        monthsToValuation,
+        balances,
+        g,
+        calculation
+      } = plan;
+      const shs = balances.shs;
+      const contractCosts = bs * tariff.costRate;
+      const totalPaidByValuation = contractCosts + monthlySavingsAtValuation + lumpPayment;
+      const detailLines = [
+        `Zugehöriger Bewertungsstichtag: ${formatDisplayDate(valuation)}`,
+        `Erforderliches Mindestsparguthaben (${formatNumber(tariff.minimumSavings * 100, 0)} %): ${formatNumber(minimumSavingsAmount)} EUR`,
+        `Monatsraten bis zum Bewertungsstichtag (${monthsToValuation} x ${formatNumber(monthlyPayment)} EUR): ${formatNumber(monthlySavingsAtValuation)} EUR`,
+        `Fehlbetrag zum Mindestsparguthaben: ${formatNumber(plan.requiredLumpPayment)} EUR`,
+        `Guthaben G am Stichtag: ${formatNumber(g)} EUR`,
+        `Einmalzahlung am ${formatDisplayDate(paymentDate)}: ${formatNumber(lumpPayment)} EUR`,
+        `Abschlusskosten (${formatNumber(tariff.costRate * 100, 1)} %): ${formatNumber(contractCosts)} EUR`,
+        `Gesamtausgaben bis zum Bewertungsstichtag: ${formatNumber(totalPaidByValuation)} EUR`,
+        `Summe der Habensalden SHS: ${formatNumber(shs)} EUR`
+      ];
+
+      if (tariff.simple) {
+        detailLines.push(`Formel: SHS x ${tariff.bzf} / BS`);
+      } else {
+        detailLines.push(`D: ${formatNumber(calculation.d)} EUR`);
+        detailLines.push(`Faktor F: ${formatNumber(calculation.factor, 6)}`);
+        if (tariff.p) detailLines.push(`Anspargrad ANSP: ${formatNumber(calculation.anspargrad, 6)}`);
+        detailLines.push(`Formel: (200 x TB x F) / (D / 750 + ZF x D x D / (SHS + 3 x G))`);
+      }
+
+      const rounded = commercialRound(calculation.raw);
+      result.textContent = formatDisplayDate(effectiveAllocationDate);
+      resultText.innerHTML = lumpPayment === 0
+        ? `Mit der festen Monatsrate ist keine Einmalzahlung nötig.`
+        : `Einmalzahlung am <strong>${formatDisplayDate(paymentDate)}</strong>: <strong>${formatNumber(lumpPayment)} EUR</strong>.`;
+      detailLines.unshift(`Bewertungszahl am gewählten Stichtag: ${formatNumber(rounded, 0)} (${formatNumber(calculation.raw, 4)} ungerundet)`);
+      detailLines.unshift("Frühester rechnerischer Zuteilungstermin nach der Einmalzahlung.");
+      detailLines.push(`Abschlusskosten zählen nicht zum Bausparguthaben und nicht zur Bewertungszahl.`);
+      detailLines.push("Die tatsächliche Zuteilung kann später erfolgen, weil die Bausparkasse zusätzlich eine Zielbewertungszahl festlegt.");
+      details.innerHTML = detailLines.map(line => `<li>${line}</li>`).join("");
+    });
+
+    let calculationTimer;
+    function scheduleCalculation() {
+      clearTimeout(calculationTimer);
+      calculationTimer = setTimeout(() => {
+        form.dispatchEvent(new Event("submit", { cancelable: true }));
+      }, 150);
+    }
+
+    form.querySelectorAll("input, select").forEach((field) => {
+      field.addEventListener("input", scheduleCalculation);
+      field.addEventListener("change", scheduleCalculation);
+    });
+    scheduleCalculation();
+  </script>
+</body>
+</html>
