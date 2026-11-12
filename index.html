@@ -77,6 +77,10 @@
           <input id="monthly-payment" inputmode="decimal" min="0" step="0.01" value="100" required>
           <small>Wird ab Vertragsbeginn zum jeweiligen Monatsende eingezahlt.</small>
         </label>
+        <label id="repayment-field">Tilgungsbeitrag (TB) in EUR
+          <input id="repayment-contribution" inputmode="decimal" min="0" step="0.01" required>
+          <small id="repayment-hint">Wird beim Ändern der Bausparsumme mit dem tariflichen Höchstwert vorbelegt.</small>
+        </label>
         <label>Datum der Einmalzahlung
           <input id="lump-payment-date" type="date" required>
           <small>Ab diesem Datum wird der frühestmögliche Zuteilungstermin ermittelt.</small>
@@ -129,13 +133,13 @@
 
   <script>
     const tariffs = {
-      KF045: { label: "KF 0,45", zf: 0.45, factor: 1, repaymentRate: 0.01, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
-      KF195: { label: "KF 1,95", zf: 0.275, factor: 1, repaymentRate: 0.0035, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
-      P150: { label: "P 1,50", zf: 0.503, repaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
-      P125: { label: "P 1,25", zf: 0.503, repaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
-      P225: { label: "P 2,25", zf: 0.286, repaymentRate: 0.006, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
-      P200: { label: "P 2,00", zf: 0.286, repaymentRate: 0.006, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
-      S: { label: "S", zf: 0.5, factor: 1, repaymentRate: 0.006, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 36 },
+      KF045: { label: "KF 0,45", zf: 0.45, factor: 1, maxRepaymentRate: 0.01, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
+      KF195: { label: "KF 1,95", zf: 0.275, factor: 1, maxRepaymentRate: 0.0035, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
+      P150: { label: "P 1,50", zf: 0.503, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
+      P125: { label: "P 1,25", zf: 0.503, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
+      P225: { label: "P 2,25", zf: 0.286, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
+      P200: { label: "P 2,00", zf: 0.286, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
+      S: { label: "S", zf: 0.5, factor: 1, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 36 },
       KP: { label: "KP", bzf: 7.5, costRate: 0.01, minimumSavings: 0.5, minimumMonths: 12, simple: true },
       T: { label: "T", bzf: 7, costRate: 0.01, minimumSavings: 0.4, minimumMonths: 12, simple: true }
     };
@@ -149,6 +153,9 @@
     const datesNote = document.querySelector("#dates-note");
     const bsInput = document.querySelector("#bs");
     const lumpPaymentDateInput = document.querySelector("#lump-payment-date");
+    const repaymentField = document.querySelector("#repayment-field");
+    const repaymentContributionInput = document.querySelector("#repayment-contribution");
+    const repaymentHint = document.querySelector("#repayment-hint");
     const formulaDialog = document.querySelector("#formula-dialog");
 
     function parseGermanNumber(value) {
@@ -222,12 +229,12 @@
       return { shs, balanceAtValuation };
     }
 
-    function calculateBz(tariff, bs, g, shs) {
+    function calculateBz(tariff, bs, g, shs, repaymentContribution) {
       if (tariff.simple) {
         return { raw: shs * tariff.bzf / bs };
       }
 
-      const tb = bs * tariff.repaymentRate;
+      const tb = repaymentContribution;
       const d = g > bs * 0.5 ? bs * 0.5 : bs - g;
       const anspargrad = tariff.p ? Math.max(0, g / bs - tariff.minimumSavings) : 0;
       const factor = tariff.p
@@ -245,7 +252,7 @@
       return new Date(targetYear, normalizedMonth, Math.min(date.getDate(), lastDayOfMonth(new Date(targetYear, normalizedMonth, 1)).getDate()));
     }
 
-    function evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, lumpPaymentDate, customLumpPayment) {
+    function evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, lumpPaymentDate, customLumpPayment, repaymentContribution) {
       const minimumSavingsDate = addMonths(contractStart, tariff.minimumMonths);
       const monthsToValuation = (valuation.getFullYear() - contractStart.getFullYear()) * 12 + valuation.getMonth() - contractStart.getMonth() + 1;
       const minimumSavingsAmount = bs * tariff.minimumSavings;
@@ -254,7 +261,7 @@
       const lumpPayment = customLumpPayment === null ? requiredLumpPayment : customLumpPayment;
       const balances = calculateBalances(contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs);
       const g = Math.min(balances.balanceAtValuation, bs);
-      const calculation = calculateBz(tariff, bs, g, balances.shs);
+      const calculation = calculateBz(tariff, bs, g, balances.shs, repaymentContribution);
 
       return {
         possible: lumpPaymentDate >= contractStart
@@ -280,7 +287,7 @@
       return Math.max(0, bs * tariff.minimumSavings - monthlyPayment * Math.max(0, monthsToPayment));
     }
 
-    function findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, paymentDate, customLumpPayment) {
+    function findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, paymentDate, customLumpPayment, repaymentContribution) {
       const lumpPayment = customLumpPayment === null
         ? calculateAutomaticLumpPayment(tariff, bs, contractStart, paymentDate, monthlyPayment)
         : customLumpPayment;
@@ -289,7 +296,7 @@
 
       for (let month = 0; month < 600; month += 1) {
         const valuation = lastDayOfMonth(new Date(firstValuation.getFullYear(), firstValuation.getMonth() + month, 1));
-        const plan = evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, paymentDate, lumpPayment);
+        const plan = evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, paymentDate, lumpPayment, repaymentContribution);
         fallback = plan;
         if (plan.possible) {
           return {
@@ -305,6 +312,14 @@
 
     function updateTariff() {
       const tariff = tariffs[tariffSelect.value];
+      const bs = parseGermanNumber(bsInput.value);
+      const hasRepaymentContribution = !tariff.simple;
+      repaymentField.classList.toggle("hidden", !hasRepaymentContribution);
+      repaymentContributionInput.required = hasRepaymentContribution;
+      if (hasRepaymentContribution && Number.isFinite(bs) && bs > 0) {
+        repaymentContributionInput.value = formatNumber(bs * tariff.maxRepaymentRate);
+        repaymentHint.textContent = `Tariflicher Höchstwert: ${formatNumber(tariff.maxRepaymentRate * 1000, 1)} ‰ der Bausparsumme. Bei einem Angebot den dort ausgewiesenen EUR-Betrag eingeben.`;
+      }
       tariffHint.textContent = tariff.simple
         ? `${tariff.label}: BZ = SHS x ${tariff.bzf} / BS.`
         : `${tariff.label}: Mindestsparguthaben ${formatNumber(tariff.minimumSavings * 100, 0)} % der Bausparsumme; Mindestsparzeit ${tariff.minimumMonths} Monate.`;
@@ -317,7 +332,9 @@
     bsInput.addEventListener("blur", () => {
       const value = parseGermanNumber(bsInput.value);
       if (Number.isFinite(value) && value >= 0) bsInput.value = formatNumber(value, Number.isInteger(value) ? 0 : 2);
+      updateTariff();
     });
+    bsInput.addEventListener("input", updateTariff);
     bsInput.dispatchEvent(new Event("blur"));
     updateTariff();
     document.querySelector("#info-button").addEventListener("click", () => {
@@ -336,9 +353,12 @@
       const contractStart = toDate(document.querySelector("#contract-start").value);
       const monthlyPayment = parseGermanNumber(document.querySelector("#monthly-payment").value);
       const lumpPaymentDate = toDate(lumpPaymentDateInput.value);
+      const repaymentContribution = tariff.simple
+        ? 0
+        : parseGermanNumber(repaymentContributionInput.value);
       const customLumpPayment = null;
 
-      if (![bs, monthlyPayment].every(Number.isFinite) || !contractStart || !lumpPaymentDate || bs <= 0 || monthlyPayment < 0) {
+      if (![bs, monthlyPayment, repaymentContribution].every(Number.isFinite) || !contractStart || !lumpPaymentDate || bs <= 0 || monthlyPayment < 0 || repaymentContribution < 0) {
         result.textContent = "-";
         resultText.textContent = "Bitte gültige Werte für Bausparsumme, Monatsrate und die Datumsangaben eingeben.";
         details.innerHTML = "";
@@ -352,7 +372,7 @@
         return;
       }
 
-      const plan = findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, lumpPaymentDate, customLumpPayment);
+      const plan = findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, lumpPaymentDate, customLumpPayment, repaymentContribution);
       const valuation = plan.valuation;
       const effectiveAllocationDate = plan.allocationDate;
       if (!plan.possible) {
@@ -396,6 +416,7 @@
       if (tariff.simple) {
         detailLines.push(`Formel: SHS x ${tariff.bzf} / BS`);
       } else {
+        detailLines.push(`Tilgungsbeitrag TB: ${formatNumber(calculation.tb)} EUR`);
         detailLines.push(`D: ${formatNumber(calculation.d)} EUR`);
         detailLines.push(`Faktor F: ${formatNumber(calculation.factor, 6)}`);
         if (tariff.p) detailLines.push(`Anspargrad ANSP: ${formatNumber(calculation.anspargrad, 6)}`);
