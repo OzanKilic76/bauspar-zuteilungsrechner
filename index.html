@@ -127,21 +127,21 @@
     </dialog>
 
     <footer>
-      Die Berechnung dient zur Orientierung. Zinsen, Gebühren, Auszahlungen und Tarifänderungen werden nicht simuliert. Für eine Zuteilung gelten zusätzlich Mindestsparzeit, Mindestansparung, Mindestbewertungszahl sowie die von der Bausparkasse festgelegte Zielbewertungszahl.
+      Die Berechnung dient zur Orientierung. Guthabenzinsen werden monatlich ermittelt und jährlich auf Cent abgerundet gutgeschrieben. Gebühren, Auszahlungen und Tarifänderungen werden nicht simuliert. Für eine Zuteilung gelten zusätzlich Mindestsparzeit, Mindestansparung, Mindestbewertungszahl sowie die von der Bausparkasse festgelegte Zielbewertungszahl.
     </footer>
   </main>
 
   <script>
     const tariffs = {
-      KF045: { label: "KF 0,45", zf: 0.45, factor: 1, maxRepaymentRate: 0.01, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
-      KF195: { label: "KF 1,95", zf: 0.275, factor: 1, maxRepaymentRate: 0.0035, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
-      P150: { label: "P 1,50", zf: 0.503, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
-      P125: { label: "P 1,25", zf: 0.503, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
-      P225: { label: "P 2,25", zf: 0.286, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
-      P200: { label: "P 2,00", zf: 0.286, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
-      S: { label: "S", zf: 0.5, factor: 1, maxRepaymentRate: 0.008, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 36 },
-      KP: { label: "KP", bzf: 7.5, costRate: 0.01, minimumSavings: 0.5, minimumMonths: 12, simple: true },
-      T: { label: "T", bzf: 7, costRate: 0.01, minimumSavings: 0.4, minimumMonths: 12, simple: true }
+      KF045: { label: "KF 0,45", zf: 0.45, factor: 1, maxRepaymentRate: 0.01, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
+      KF195: { label: "KF 1,95", zf: 0.275, factor: 1, maxRepaymentRate: 0.0035, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12 },
+      P150: { label: "P 1,50", zf: 0.503, maxRepaymentRate: 0.008, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
+      P125: { label: "P 1,25", zf: 0.503, maxRepaymentRate: 0.008, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 12, p: true },
+      P225: { label: "P 2,25", zf: 0.286, maxRepaymentRate: 0.008, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
+      P200: { label: "P 2,00", zf: 0.286, maxRepaymentRate: 0.008, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.3, minimumMonths: 12, p: true },
+      S: { label: "S", zf: 0.5, factor: 1, maxRepaymentRate: 0.008, savingsInterestRate: 0.0001, costRate: 0.016, minimumSavings: 0.4, minimumMonths: 36 },
+      KP: { label: "KP", bzf: 7.5, savingsInterestRate: 0.002, costRate: 0.01, minimumSavings: 0.5, minimumMonths: 12, simple: true },
+      T: { label: "T", bzf: 7, savingsInterestRate: 0.002, costRate: 0.01, minimumSavings: 0.4, minimumMonths: 12, simple: true }
     };
 
     const form = document.querySelector("#calculator");
@@ -209,24 +209,39 @@
       ].join(".");
     }
 
-    function calculateBalances(contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs) {
+    function monthlyPaymentStartDate(contractStart) {
+      return contractStart.getDate() === 1
+        ? new Date(contractStart)
+        : firstDayOfNextMonth(contractStart);
+    }
+
+    function monthlyPaymentCount(contractStart, date) {
+      const paymentStart = monthlyPaymentStartDate(contractStart);
+      if (date < paymentStart) return 0;
+      return (date.getFullYear() - paymentStart.getFullYear()) * 12 + date.getMonth() - paymentStart.getMonth() + 1;
+    }
+
+    function calculateBalances(tariff, contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs) {
       let shs = 0;
-      let balanceAtValuation = 0;
+      let balance = 0;
+      let accruedInterest = 0;
       const firstStichtag = lastDayOfMonth(contractStart);
+      const paymentStart = monthlyPaymentStartDate(contractStart);
 
       for (let stichtag = new Date(firstStichtag); stichtag <= valuation; stichtag = lastDayOfMonth(new Date(stichtag.getFullYear(), stichtag.getMonth() + 1, 1))) {
-        let balance = 0;
-        const months = (stichtag.getFullYear() - contractStart.getFullYear()) * 12 + stichtag.getMonth() - contractStart.getMonth() + 1;
-        balance += monthlyPayment * months;
-        if (lumpPaymentDate && lumpPaymentDate <= stichtag) balance += lumpPayment;
+        if (paymentStart <= stichtag) balance += monthlyPayment;
+        if (lumpPaymentDate && lumpPaymentDate > new Date(stichtag.getFullYear(), stichtag.getMonth(), 0) && lumpPaymentDate <= stichtag) {
+          balance += lumpPayment;
+        }
+        accruedInterest += balance * tariff.savingsInterestRate / 12;
+        if (stichtag.getMonth() === 11) {
+          balance += Math.floor((accruedInterest + Number.EPSILON) * 100) / 100;
+          accruedInterest = 0;
+        }
         shs += Math.min(balance, bs);
       }
 
-      const months = (valuation.getFullYear() - contractStart.getFullYear()) * 12 + valuation.getMonth() - contractStart.getMonth() + 1;
-      balanceAtValuation += monthlyPayment * months;
-      if (lumpPaymentDate && lumpPaymentDate <= valuation) balanceAtValuation += lumpPayment;
-
-      return { shs, balanceAtValuation };
+      return { shs, balanceAtValuation: balance };
     }
 
     function calculateBz(tariff, bs, g, shs, repaymentContribution) {
@@ -254,12 +269,12 @@
 
     function evaluateLumpPaymentDate(tariff, bs, contractStart, valuation, monthlyPayment, lumpPaymentDate, customLumpPayment, repaymentContribution) {
       const minimumSavingsDate = addMonths(contractStart, tariff.minimumMonths);
-      const monthsToValuation = (valuation.getFullYear() - contractStart.getFullYear()) * 12 + valuation.getMonth() - contractStart.getMonth() + 1;
+      const monthsToValuation = monthlyPaymentCount(contractStart, valuation);
       const minimumSavingsAmount = bs * tariff.minimumSavings;
       const monthlySavingsAtValuation = monthlyPayment * monthsToValuation;
       const requiredLumpPayment = Math.max(0, minimumSavingsAmount - monthlySavingsAtValuation);
       const lumpPayment = customLumpPayment === null ? requiredLumpPayment : customLumpPayment;
-      const balances = calculateBalances(contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs);
+      const balances = calculateBalances(tariff, contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs);
       const g = Math.min(balances.balanceAtValuation, bs);
       const calculation = calculateBz(tariff, bs, g, balances.shs, repaymentContribution);
 
@@ -282,8 +297,7 @@
     }
 
     function calculateAutomaticLumpPayment(tariff, bs, contractStart, paymentDate, monthlyPayment) {
-      const monthsToPayment = (paymentDate.getFullYear() - contractStart.getFullYear()) * 12
-        + paymentDate.getMonth() - contractStart.getMonth() + 1;
+      const monthsToPayment = monthlyPaymentCount(contractStart, paymentDate);
       return Math.max(0, bs * tariff.minimumSavings - monthlyPayment * Math.max(0, monthsToPayment));
     }
 
