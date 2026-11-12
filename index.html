@@ -75,7 +75,7 @@
         </label>
         <label>Monatliche Rate in EUR
           <input id="monthly-payment" inputmode="decimal" min="0" step="0.01" value="100" required>
-          <small>Wird ab Vertragsbeginn zum jeweiligen Monatsende eingezahlt.</small>
+          <small>Wird ab Vertragsbeginn bis zum Monat vor der Zuteilung eingezahlt.</small>
         </label>
         <label id="repayment-field">Tilgungsbeitrag (TB) in EUR
           <input id="repayment-contribution" inputmode="decimal" min="0" step="0.01" required>
@@ -414,16 +414,29 @@
       } = plan;
       const shs = balances.shs;
       const contractCosts = bs * tariff.costRate;
-      const totalPaidByValuation = contractCosts + monthlySavingsAtValuation + lumpPayment;
+      const lastSavingsDate = lastDayOfMonth(new Date(effectiveAllocationDate.getFullYear(), effectiveAllocationDate.getMonth() - 1, 1));
+      const balancesBeforeAllocation = calculateBalances(
+        tariff,
+        contractStart,
+        lastSavingsDate,
+        monthlyPayment,
+        lumpPayment,
+        paymentDate,
+        bs
+      );
+      const monthlySavingsBeforeAllocation = monthlyPaymentCount(contractStart, lastSavingsDate) * monthlyPayment;
+      const totalPaidBeforeAllocation = contractCosts + monthlySavingsBeforeAllocation + lumpPayment;
       const detailLines = [
         `Zugehöriger Bewertungsstichtag: ${formatDisplayDate(valuation)}`,
         `Erforderliches Mindestsparguthaben (${formatNumber(tariff.minimumSavings * 100, 0)} %): ${formatNumber(minimumSavingsAmount)} EUR`,
         `Monatsraten bis zum Bewertungsstichtag (${monthsToValuation} x ${formatNumber(monthlyPayment)} EUR): ${formatNumber(monthlySavingsAtValuation)} EUR`,
+        `Monatsraten bis vor Zuteilung (${monthlyPaymentCount(contractStart, lastSavingsDate)} x ${formatNumber(monthlyPayment)} EUR): ${formatNumber(monthlySavingsBeforeAllocation)} EUR`,
         `Fehlbetrag zum Mindestsparguthaben: ${formatNumber(plan.requiredLumpPayment)} EUR`,
         `Guthaben G am Stichtag: ${formatNumber(g)} EUR`,
+        `Bausparguthaben vor Zuteilung: ${formatNumber(balancesBeforeAllocation.balanceAtValuation)} EUR`,
         `Einmalzahlung am ${formatDisplayDate(paymentDate)}: ${formatNumber(lumpPayment)} EUR`,
         `Abschlusskosten (${formatNumber(tariff.costRate * 100, 1)} %): ${formatNumber(contractCosts)} EUR`,
-        `Gesamtausgaben bis zum Bewertungsstichtag: ${formatNumber(totalPaidByValuation)} EUR`,
+        `Gesamtausgaben bis zur Zuteilung: ${formatNumber(totalPaidBeforeAllocation)} EUR`,
         `Summe der Habensalden SHS: ${formatNumber(shs)} EUR`
       ];
 
