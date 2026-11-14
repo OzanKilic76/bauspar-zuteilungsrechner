@@ -347,6 +347,29 @@
       return { ...fallback, allocationDate: null };
     }
 
+    function findZuteilungMilestones(tariff, bs, contractStart, monthlyPayment, paymentDate, lumpPayment, repaymentContribution, endValuation) {
+      const firstValuation = lastDayOfMonth(paymentDate);
+      let firstBzDate = null;
+      let firstMinimumSavingsDate = null;
+
+      for (let valuation = new Date(firstValuation); valuation <= endValuation; valuation = lastDayOfMonth(new Date(valuation.getFullYear(), valuation.getMonth() + 1, 1))) {
+        const plan = evaluateLumpPaymentDate(
+          tariff,
+          bs,
+          contractStart,
+          valuation,
+          monthlyPayment,
+          paymentDate,
+          lumpPayment,
+          repaymentContribution
+        );
+        if (!firstBzDate && commercialRound(plan.calculation.raw) >= 200) firstBzDate = new Date(valuation);
+        if (!firstMinimumSavingsDate && plan.g >= plan.minimumSavingsAmount) firstMinimumSavingsDate = new Date(valuation);
+      }
+
+      return { firstBzDate, firstMinimumSavingsDate };
+    }
+
     function prefillLumpPayment() {
       const tariff = tariffs[tariffSelect.value];
       const bs = parseGermanNumber(bsInput.value);
@@ -453,6 +476,16 @@
       } = plan;
       const shs = balances.shs;
       const contractCosts = bs * tariff.costRate;
+      const milestones = findZuteilungMilestones(
+        tariff,
+        bs,
+        contractStart,
+        monthlyPayment,
+        paymentDate,
+        lumpPayment,
+        repaymentContribution,
+        valuation
+      );
       const lastSavingsDate = lastDayOfMonth(new Date(effectiveAllocationDate.getFullYear(), effectiveAllocationDate.getMonth() - 1, 1));
       const balancesBeforeAllocation = calculateBalances(
         tariff,
@@ -468,6 +501,8 @@
       const totalPaidBeforeAllocation = contractCosts + monthlySavingsBeforeAllocation + lumpPayment;
       const detailLines = [
         `Zugehöriger Bewertungsstichtag: ${formatDisplayDate(valuation)}`,
+        `Bewertungszahl 200 erstmals erreicht: ${formatDisplayDate(milestones.firstBzDate)}`,
+        `Mindestsparguthaben erstmals erreicht: ${formatDisplayDate(milestones.firstMinimumSavingsDate)}`,
         `Erforderliches Mindestsparguthaben (${formatNumber(tariff.minimumSavings * 100, 0)} %): ${formatNumber(minimumSavingsAmount)} EUR`,
         `Monatsraten bis zum Bewertungsstichtag (${monthsToValuation} x ${formatNumber(monthlyPayment)} EUR): ${formatNumber(monthlySavingsAtValuation)} EUR`,
         `Monatsraten bis vor Zuteilung (${monthlyPaymentCount(contractStart, lastSavingsDate)} x ${formatNumber(monthlyPayment)} EUR): ${formatNumber(monthlySavingsBeforeAllocation)} EUR`,
