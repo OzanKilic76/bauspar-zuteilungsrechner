@@ -87,7 +87,7 @@
         </label>
         <label>Höhe der Einmalzahlung in EUR
           <input id="lump-payment" inputmode="decimal" min="0" step="0.01" value="0" required>
-          <small>Dieser Betrag wird vollständig als Sonderzahlung berücksichtigt.</small>
+          <small>Wird beim Ändern des Einzahlungsdatums auf die fehlende Mindestansparung vorbelegt; danach frei anpassbar.</small>
         </label>
       </div>
       <p class="hint" id="dates-note"></p>
@@ -347,6 +347,22 @@
       return { ...fallback, allocationDate: null };
     }
 
+    function prefillLumpPayment() {
+      const tariff = tariffs[tariffSelect.value];
+      const bs = parseGermanNumber(bsInput.value);
+      const contractStart = toDate(document.querySelector("#contract-start").value);
+      const monthlyPayment = parseGermanNumber(document.querySelector("#monthly-payment").value);
+      const paymentDate = toDate(lumpPaymentDateInput.value);
+
+      if (![bs, monthlyPayment].every(Number.isFinite) || !contractStart || !paymentDate || bs <= 0 || monthlyPayment < 0 || paymentDate < contractStart) {
+        return;
+      }
+
+      const monthlySavings = monthlyPaymentCount(contractStart, paymentDate) * monthlyPayment;
+      const suggestedLumpPayment = Math.max(0, bs * tariff.minimumSavings - monthlySavings);
+      lumpPaymentInput.value = formatNumber(suggestedLumpPayment);
+    }
+
     function updateTariff() {
       const tariff = tariffs[tariffSelect.value];
       const bs = parseGermanNumber(bsInput.value);
@@ -501,6 +517,8 @@
       field.addEventListener("input", scheduleCalculation);
       field.addEventListener("change", scheduleCalculation);
     });
+    lumpPaymentDateInput.addEventListener("input", prefillLumpPayment);
+    lumpPaymentDateInput.addEventListener("change", prefillLumpPayment);
     scheduleCalculation();
   </script>
 </body>
