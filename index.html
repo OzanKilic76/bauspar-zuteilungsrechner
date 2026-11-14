@@ -109,6 +109,10 @@
         <li><strong>SHS</strong>: Summe aller Guthabenstände an vergangenen monatlichen Bewertungsstichtagen, jeweils höchstens BS. Damit wird die Dauer der Ansparung berücksichtigt.</li>
         <li><strong>MGH</strong>: Mindestsparguthaben der Tarifvariante, zum Beispiel 40&nbsp;% bei KF.</li>
       </ul>
+      <h3>Gesamtguthaben</h3>
+      <p>Das Gesamtguthaben direkt vor der Zuteilung setzt sich zusammen aus:</p>
+      <p><code>Monatsraten + Einmalzahlung + gutgeschriebene Guthabenzinsen</code></p>
+      <p>Die Abschlussgebühr und der Variantenpreis werden separat gezahlt. Sie erhöhen weder das Bausparguthaben noch die Bewertungszahl.</p>
       <h3>Tarife KF, P und S</h3>
       <p><code>BZ = (200 × TB × F) / (D / 750 + ZF × D² / (SHS + 3 × G))</code></p>
       <ul>
@@ -221,27 +225,48 @@
       return (date.getFullYear() - paymentStart.getFullYear()) * 12 + date.getMonth() - paymentStart.getMonth() + 1;
     }
 
-    function calculateBalances(tariff, contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs) {
+    function calculateBalances(tariff, contractStart, valuation, monthlyPayment, lumpPayment, lumpPaymentDate, bs, settleAccruedInterest = false) {
       let shs = 0;
       let balance = 0;
       let accruedInterest = 0;
+      let monthlyPaymentsTotal = 0;
+      let lumpPaymentsTotal = 0;
+      let creditedInterestTotal = 0;
       const firstStichtag = lastDayOfMonth(contractStart);
       const paymentStart = monthlyPaymentStartDate(contractStart);
 
       for (let stichtag = new Date(firstStichtag); stichtag <= valuation; stichtag = lastDayOfMonth(new Date(stichtag.getFullYear(), stichtag.getMonth() + 1, 1))) {
-        if (paymentStart <= stichtag) balance += monthlyPayment;
+        if (paymentStart <= stichtag) {
+          balance += monthlyPayment;
+          monthlyPaymentsTotal += monthlyPayment;
+        }
         if (lumpPaymentDate && lumpPaymentDate > new Date(stichtag.getFullYear(), stichtag.getMonth(), 0) && lumpPaymentDate <= stichtag) {
           balance += lumpPayment;
+          lumpPaymentsTotal += lumpPayment;
         }
         accruedInterest += balance * tariff.savingsInterestRate / 12;
         if (stichtag.getMonth() === 11) {
-          balance += Math.floor((accruedInterest + Number.EPSILON) * 100) / 100;
+          const creditedInterest = Math.floor((accruedInterest + Number.EPSILON) * 100) / 100;
+          balance += creditedInterest;
+          creditedInterestTotal += creditedInterest;
           accruedInterest = 0;
         }
         shs += Math.min(balance, bs);
       }
 
-      return { shs, balanceAtValuation: balance };
+      if (settleAccruedInterest && accruedInterest > 0) {
+        const creditedInterest = Math.floor((accruedInterest + Number.EPSILON) * 100) / 100;
+        balance += creditedInterest;
+        creditedInterestTotal += creditedInterest;
+      }
+
+      return {
+        shs,
+        balanceAtValuation: balance,
+        monthlyPaymentsTotal,
+        lumpPaymentsTotal,
+        creditedInterestTotal
+      };
     }
 
     function calculateBz(tariff, bs, g, shs, repaymentContribution) {
@@ -422,7 +447,8 @@
         monthlyPayment,
         lumpPayment,
         paymentDate,
-        bs
+        bs,
+        true
       );
       const monthlySavingsBeforeAllocation = monthlyPaymentCount(contractStart, lastSavingsDate) * monthlyPayment;
       const totalPaidBeforeAllocation = contractCosts + monthlySavingsBeforeAllocation + lumpPayment;
@@ -433,7 +459,10 @@
         `Monatsraten bis vor Zuteilung (${monthlyPaymentCount(contractStart, lastSavingsDate)} x ${formatNumber(monthlyPayment)} EUR): ${formatNumber(monthlySavingsBeforeAllocation)} EUR`,
         `Fehlbetrag zum Mindestsparguthaben: ${formatNumber(plan.requiredLumpPayment)} EUR`,
         `Guthaben G am Stichtag: ${formatNumber(g)} EUR`,
-        `Bausparguthaben vor Zuteilung: ${formatNumber(balancesBeforeAllocation.balanceAtValuation)} EUR`,
+        `Gesamtguthaben vor Zuteilung: ${formatNumber(balancesBeforeAllocation.balanceAtValuation)} EUR`,
+        `  davon Monatsraten: ${formatNumber(balancesBeforeAllocation.monthlyPaymentsTotal)} EUR`,
+        `  davon Einmalzahlung: ${formatNumber(balancesBeforeAllocation.lumpPaymentsTotal)} EUR`,
+        `  davon gutgeschriebene Guthabenzinsen: ${formatNumber(balancesBeforeAllocation.creditedInterestTotal)} EUR`,
         `Einmalzahlung am ${formatDisplayDate(paymentDate)}: ${formatNumber(lumpPayment)} EUR`,
         `Abschlusskosten (${formatNumber(tariff.costRate * 100, 1)} %): ${formatNumber(contractCosts)} EUR`,
         `Gesamtausgaben bis zur Zuteilung: ${formatNumber(totalPaidBeforeAllocation)} EUR`,
