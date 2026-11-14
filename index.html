@@ -49,7 +49,7 @@
 <body>
   <main>
     <h1>Zuteilungsreife-Rechner</h1>
-    <p class="intro">Berechnet aus einer festen Monatsrate und einer Einmalzahlung den frühestmöglichen rechnerischen Zuteilungstermin.</p>
+    <p class="intro">Berechnet aus deiner festen Monatsrate und einer selbst festgelegten Einmalzahlung den frühestmöglichen rechnerischen Zuteilungstermin.</p>
 
     <div class="calculator-layout">
     <form id="calculator" novalidate>
@@ -84,6 +84,10 @@
         <label>Datum der Einmalzahlung
           <input id="lump-payment-date" type="date" required>
           <small>Ab diesem Datum wird der frühestmögliche Zuteilungstermin ermittelt.</small>
+        </label>
+        <label>Höhe der Einmalzahlung in EUR
+          <input id="lump-payment" inputmode="decimal" min="0" step="0.01" value="0" required>
+          <small>Dieser Betrag wird vollständig als Sonderzahlung berücksichtigt.</small>
         </label>
       </div>
       <p class="hint" id="dates-note"></p>
@@ -157,6 +161,7 @@
     const datesNote = document.querySelector("#dates-note");
     const bsInput = document.querySelector("#bs");
     const lumpPaymentDateInput = document.querySelector("#lump-payment-date");
+    const lumpPaymentInput = document.querySelector("#lump-payment");
     const repaymentField = document.querySelector("#repayment-field");
     const repaymentContributionInput = document.querySelector("#repayment-contribution");
     const repaymentHint = document.querySelector("#repayment-hint");
@@ -321,15 +326,8 @@
       };
     }
 
-    function calculateAutomaticLumpPayment(tariff, bs, contractStart, paymentDate, monthlyPayment) {
-      const monthsToPayment = monthlyPaymentCount(contractStart, paymentDate);
-      return Math.max(0, bs * tariff.minimumSavings - monthlyPayment * Math.max(0, monthsToPayment));
-    }
-
     function findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, paymentDate, customLumpPayment, repaymentContribution) {
-      const lumpPayment = customLumpPayment === null
-        ? calculateAutomaticLumpPayment(tariff, bs, contractStart, paymentDate, monthlyPayment)
-        : customLumpPayment;
+      const lumpPayment = customLumpPayment;
       const firstValuation = lastDayOfMonth(paymentDate);
       let fallback;
 
@@ -392,14 +390,14 @@
       const contractStart = toDate(document.querySelector("#contract-start").value);
       const monthlyPayment = parseGermanNumber(document.querySelector("#monthly-payment").value);
       const lumpPaymentDate = toDate(lumpPaymentDateInput.value);
+      const suppliedLumpPayment = parseGermanNumber(lumpPaymentInput.value);
       const repaymentContribution = tariff.simple
         ? 0
         : parseGermanNumber(repaymentContributionInput.value);
-      const customLumpPayment = null;
 
-      if (![bs, monthlyPayment, repaymentContribution].every(Number.isFinite) || !contractStart || !lumpPaymentDate || bs <= 0 || monthlyPayment < 0 || repaymentContribution < 0) {
+      if (![bs, monthlyPayment, suppliedLumpPayment, repaymentContribution].every(Number.isFinite) || !contractStart || !lumpPaymentDate || bs <= 0 || monthlyPayment < 0 || suppliedLumpPayment < 0 || repaymentContribution < 0) {
         result.textContent = "-";
-        resultText.textContent = "Bitte gültige Werte für Bausparsumme, Monatsrate und die Datumsangaben eingeben.";
+        resultText.textContent = "Bitte gültige Werte für Bausparsumme, Monatsrate, Einmalzahlung und die Datumsangaben eingeben.";
         details.innerHTML = "";
         return;
       }
@@ -411,7 +409,7 @@
         return;
       }
 
-      const plan = findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, lumpPaymentDate, customLumpPayment, repaymentContribution);
+      const plan = findEarliestAllocation(tariff, bs, contractStart, monthlyPayment, lumpPaymentDate, suppliedLumpPayment, repaymentContribution);
       const valuation = plan.valuation;
       const effectiveAllocationDate = plan.allocationDate;
       if (!plan.possible) {
